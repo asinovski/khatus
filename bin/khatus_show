@@ -22,7 +22,7 @@ memory=$(
             total=$2;
             used=$3;
             cache=$6;
-            prev_file = "/home/siraaj/var/run/status/memory_used_percentage";
+            prev_file = "/home/ibn/var/run/status/memory_used_percentage";
             curr = round(used / total * 100);
             getline prev < prev_file;
             print curr > prev_file;
@@ -47,7 +47,7 @@ disk_io=$(
             curr_sectors_read  = $3
             curr_sectors_write = $7
 
-            prev_file_prefix        = "/home/siraaj/var/run/status/disk_io"
+            prev_file_prefix        = "/home/ibn/var/run/status/disk_io"
             prev_sectors_read_file  = prev_file_prefix "_sectors_read"
             prev_sectors_write_file = prev_file_prefix "_sectors_write"
 
@@ -69,7 +69,7 @@ disk_io=$(
             printf("%0.3f▲ %0.3f▼\n", diff_write, diff_read);
 
         }
-        ' /sys/block/dm-1/stat
+        ' /sys/block/dm-0/stat
 )
 
 disk=$(
@@ -77,9 +77,9 @@ disk=$(
     | awk -v disk_io="$disk_io" '
         function round(n) {return int(n + 0.5)}
 
-        $1 == "/dev/mapper/kubuntu--vg-root" {
+        $1 == "/dev/nvme0n1p2" {
             curr_perc = $5; sub("%$", "", curr_perc);
-            prev_perc_file = "/home/siraaj/var/run/status/disk_space_used";
+            prev_perc_file = "/home/ibn/var/run/status/disk_space_used";
             getline prev_perc   < prev_perc_file;
             print curr_perc > prev_perc_file;
             if (curr_perc > prev_perc) {
@@ -94,7 +94,7 @@ disk=$(
 
 network=$(
     ip -s addr \
-    | awk -v wifi_conn=$(cat $STATUS_FILE__WIFI) '
+    | awk -v wifi_conn="$(cat $STATUS_FILE__WIFI)" '
         BEGIN {
             bytes_per_unit = 1024 * 1024
         }
@@ -123,11 +123,11 @@ network=$(
         END {
             for (i=1; i<=sequence; i++) {
                 interface = interfaces[i]
-                if (addrs[interface]) {
+                if (addrs[interface] && interface != "lo") {
                     curr_read  = io[interface, "r"]
                     curr_write = io[interface, "w"]
 
-                    prefix = "/home/siraaj/var/run/status/io_net_" interface
+                    prefix = "/home/ibn/var/run/status/io_net_" interface
                     prev_read_file  = prefix "_read"
                     prev_write_file = prefix "_write"
 
@@ -140,7 +140,7 @@ network=$(
                     print curr_read  > prev_read_file
                     print curr_write > prev_write_file
 
-                    if (interface == "wlp3s0") {
+                    if (interface ~ "^w") {
                         label = wifi_conn
                     } else {
                         label = interface
@@ -152,7 +152,7 @@ network=$(
                         sep = " | "
                     }
 
-                    printf("%s %0.3f▲ %0.3f▼%s", label, diff_w, diff_r, sep)
+                    printf("%s:%0.3f▲ %0.3f▼%s", label, diff_w, diff_r, sep)
                 }
             }
         }'
@@ -178,24 +178,24 @@ energy=$(
 
 datetime=$(date +'%a, %b %d, %H:%M:%S')
 
-#volume_amixer=$(
-#    amixer get Master \
-#    | tail -1 \
-#    | awk '
-#        {
-#            level = $4;
-#            sub("^\\[", "", level);
-#            sub("\\]$", "", level);
-#            print level;
-#        }' \
-#    )
-
-#volume_amixer=$(
-#    amixer get Master \
-#    | tail -n 1 \
-#    | awk '{print $4}' \
-#    | tr -d '[]'
-#)
+##volume_amixer=$(
+##    amixer get Master \
+##    | tail -1 \
+##    | awk '
+##        {
+##            level = $4;
+##            sub("^\\[", "", level);
+##            sub("\\]$", "", level);
+##            print level;
+##        }' \
+##    )
+#
+##volume_amixer=$(
+##    amixer get Master \
+##    | tail -n 1 \
+##    | awk '{print $4}' \
+##    | tr -d '[]'
+##)
 
 volume_pactl=$(
     pactl list sinks \
@@ -223,18 +223,18 @@ volume_pactl=$(
 volume="[$volume_pactl]"
 
 screen_brightness=$(
-    max=$(cat /sys/class/backlight/acpi_video0/max_brightness)
-    cur=$(cat /sys/class/backlight/acpi_video0/brightness)
+    max=$(cat /sys/class/backlight/intel_backlight/max_brightness)
+    cur=$(cat /sys/class/backlight/intel_backlight/brightness)
     awk -v max=$max -v cur=$cur 'BEGIN {printf("%d%%", cur/max*100)}'
 )
 
-#bluetooth_status=$(
-#    grep '^status:' /proc/acpi/ibm/bluetooth \
-#    | awk '
-#        $2 == "disabled" {printf "off"}
-#        $2 == "enabled"  {printf "on"}
-#        '
-#)
+##bluetooth_status=$(
+##    grep '^status:' /proc/acpi/ibm/bluetooth \
+##    | awk '
+##        $2 == "disabled" {printf "off"}
+##        $2 == "enabled"  {printf "on"}
+##        '
+##)
 
 bluetooth_power=$(
     echo -e 'show \n quit' \
@@ -272,17 +272,14 @@ bluetooth_power=$(
         }'
 )
 
-#touchpad_status=$(
-#    xinput list-props 12 \
-#    | awk '
-#        /^\tDevice Enabled \([0-9]+\):/ {
-#            status = $4;
-#            printf("%s", status);
-#        }'
-#)
-
-#color_off='\033[0m'
-#color_on_bg_gray='\033[m\033[40m'
+##touchpad_status=$(
+##    xinput list-props 12 \
+##    | awk '
+##        /^\tDevice Enabled \([0-9]+\):/ {
+##            status = $4;
+##            printf("%s", status);
+##        }'
+##)
 
 energy_direction=$(echo "$energy" | cut -b 1)
 energy_percentage=$(echo "$energy" | tr -d '<>=%')
@@ -321,106 +318,104 @@ else
     rm -f "$STATUS_FILE__ENERGY_NOTIFIED_BELLOW_HALF"
 fi
 
-weather=$(awk 'NR == 1 {printf("%d°F", $1)}' ~/var/run/metar-KJFK-decoded-temp-fahrenheit)
+#weather=$(awk 'NR == 1 {printf("%d°F", $0)}' ~/var/run/metar-KBOS-decoded-temp-fahrenheit)
+weather=$(awk '/^Temperature/ {printf("%d°C", $3)}' ~/var/run/metar-KBOS-decoded)
 
-signal_last_msg_age=$(
-    ls -lt --time-style=+%s $HOME/var/lib/signal/latest_message.json \
-    | awk -v now_seconds=$(date +%s) \
-    '{
-        mtime_seconds = $6;
-        seconds = now_seconds - mtime_seconds;
-        minutes = seconds / 60;
-        hours   = minutes / 60;
-        days    = hours / 24;
-        weeks   = days / 7;
-        months  = days / 30;
-        #fmt = "%.1f";
-        fmt = "%d";
-        printf(fmt " s\n", seconds);
-        printf(fmt " m\n", minutes);
-        printf(fmt " h\n", hours);
-        printf(fmt " d\n", days);
-        printf(fmt " w\n", weeks);
-        printf(fmt " mo\n", months);
-    }' \
-    | awk '$1 >= 1' \
-    | sort -n -k 1 \
-    | head -1 \
-    | tr -d ' '
-)
-
-mpd_state=$(
-    echo 'status' \
-    | nc 127.0.0.1 6600 \
-    | awk '
-        {
-            status[$1] = $2
-        }
-
-        END {
-            state = status["state:"]
-            symbol = "-"
-            if (state == "play") {
-                symbol = "▶"
-            } else if (state == "pause") {
-                symbol = "❚❚"
-            } else if (state == "stop") {
-                symbol = "⬛"
-            }
-            printf("%s", symbol)
-        }
-        '
-)
-
-mpd_current=$(
-    echo 'currentsong' \
-    | nc 127.0.0.1 6600 \
-    | awk -v max_chars=10 '
-        /^OK/ {
-            next
-        }
-
-        {
-            key = $1
-            val = $2
-            for (i=3; i<=NF; i++) {val = val " " $i}
-            data[key] = val
-        }
-
-        END {
-            if (data["Name:"]) {
-                out = data["Name:"]
-            } else {
-                file = data["file:"]
-                last = split(file, parts, "/")
-                out = parts[last]
-            }
-            printf("%s", substr(out, 1, max_chars))
-        }
-        '
-)
-
-graphics_card=$(
-    nvidia-smi \
-        --format=csv,noheader,nounits \
-        --query-gpu=memory.total,memory.used,temperature.gpu \
-    | awk -F ',' '
-        {
-            mem_total = $1;
-            mem_used  = $2;
-            temp      = $3;
-            mem_used_percent = (100 * mem_used) / mem_total;
-            printf("[%d%% %dC]", mem_used_percent, temp);
-        }
-        '
-)
+#signal_last_msg_age=$(
+#    ls -lt --time-style=+%s $HOME/var/lib/signal/latest_message.json \
+#    | awk -v now_seconds=$(date +%s) \
+#    '{
+#        mtime_seconds = $6;
+#        seconds = now_seconds - mtime_seconds;
+#        minutes = seconds / 60;
+#        hours   = minutes / 60;
+#        days    = hours / 24;
+#        weeks   = days / 7;
+#        months  = days / 30;
+#        #fmt = "%.1f";
+#        fmt = "%d";
+#        printf(fmt " s\n", seconds);
+#        printf(fmt " m\n", minutes);
+#        printf(fmt " h\n", hours);
+#        printf(fmt " d\n", days);
+#        printf(fmt " w\n", weeks);
+#        printf(fmt " mo\n", months);
+#    }' \
+#    | awk '$1 >= 1' \
+#    | sort -n -k 1 \
+#    | head -1 \
+#    | tr -d ' '
+#)
+#
+#mpd_state=$(
+#    echo 'status' \
+#    | nc 127.0.0.1 6600 \
+#    | awk '
+#        {
+#            status[$1] = $2
+#        }
+#
+#        END {
+#            state = status["state:"]
+#            symbol = "-"
+#            if (state == "play") {
+#                symbol = "▶"
+#            } else if (state == "pause") {
+#                symbol = "❚❚"
+#            } else if (state == "stop") {
+#                symbol = "⬛"
+#            }
+#            printf("%s", symbol)
+#        }
+#        '
+#)
+#
+#mpd_current=$(
+#    echo 'currentsong' \
+#    | nc 127.0.0.1 6600 \
+#    | awk -v max_chars=10 '
+#        /^OK/ {
+#            next
+#        }
+#
+#        {
+#            key = $1
+#            val = $2
+#            for (i=3; i<=NF; i++) {val = val " " $i}
+#            data[key] = val
+#        }
+#
+#        END {
+#            if (data["Name:"]) {
+#                out = data["Name:"]
+#            } else {
+#                file = data["file:"]
+#                last = split(file, parts, "/")
+#                out = parts[last]
+#            }
+#            printf("%s", substr(out, 1, max_chars))
+#        }
+#        '
+#)
+#
+#graphics_card=$(
+#    nvidia-smi \
+#        --format=csv,noheader,nounits \
+#        --query-gpu=memory.total,memory.used,temperature.gpu \
+#    | awk -F ',' '
+#        {
+#            mem_total = $1;
+#            mem_used  = $2;
+#            temp      = $3;
+#            mem_used_percent = (100 * mem_used) / mem_total;
+#            printf("[%d%% %dC]", mem_used_percent, temp);
+#        }
+#        '
+#)
 
 echo \
 "\
  E$energy\
- \
- \
- G=$graphics_card\
  \
  \
  M$memory\
@@ -445,10 +440,6 @@ echo \
  \
  \
  V=$volume\
- \
- [$mpd_state $mpd_current]\
- \
- $signal_last_msg_age\
  \
  $weather\
  \

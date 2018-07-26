@@ -2,10 +2,10 @@
 
 set -e
 
-FILE_METAR_DECODED="$HOME/var/run/metar-KJFK-decoded"
+FILE_METAR_DECODED="$HOME/var/run/metar-KBOS-decoded"
 FILE_TEMP_FAHRENHEIT="${FILE_METAR_DECODED}-temp-fahrenheit"
 
-(metar -d KJFK 2>&1) > $FILE_METAR_DECODED  # TODO: Better error handling
+(metar -d KBOS 2>&1) > $FILE_METAR_DECODED  # TODO: Better error handling
 
 awk '
     /METAR pattern not found in NOAA data/ {
